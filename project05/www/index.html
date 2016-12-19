@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 05: Path Finding</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootswatch/3.3.7/united/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" />
+</head>
+<body>
+    <div class="container-fluid">
+	<div class="page-header">
+	    <h1>Project 05: Path Finding</h1>
+	</div>
+
+	<div class="row">
+	    <div class="col-md-3">
+		<h2>Text</h2>
+		<form class="form-group">
+		    <div class="form-group">
+			<textarea class="form-control" style="font-family: monospace; font-size: 150%;" rows="11" id="map_tiles_text"></textarea>
+		    </div>
+
+		    <div class="form-group">
+			<label>Rows</label>
+			<select class="form-control" id="map_tiles_rows" placeholder="Rows"></select>
+		    </div>
+		    <div class="form-group">
+			<label>Columns</label>
+			<select class="form-control" id="map_tiles_cols" placeholder="Columns"></select>
+		    </div>
+		    <button class="btn btn-primary pull-right" type="button" id="generate_random_btn">Generate Random</button>
+		</form>
+	    </div>
+	    <div class="col-md-1">
+		<h2>Tiles</h2>
+		<ul class="list-unstyled" style="font-family: monospace; font-size: 125%;" id="map_tiles_legend">
+		</ul>
+	    </div>
+
+	    <div class="col-md-6">
+		<h2>Map</h2>
+		<ul class="list-unstyled" id="map_tiles_list">
+		</ul>
+	    </div>
+
+	    <div class="col-md-2">
+		<h2>Path</h2>
+		<p style="font-family: monospace; font-size: 125%;" id="map_tiles_cost"></p>
+		<ul class="list-unstyled" style="font-family: monospace; font-size: 125%;" id="map_tiles_path">
+		</ul>
+	    </div>
+	</div>
+
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script>
+    var MAX_ROWS    = 20;
+    var MAX_COLS    = 20;
+    var DEFAULT_DIM = 10;
+    var INVERTED    = {};
+    var TILES	    = {
+    	"f": ["forest.png", 3],
+    	"g": ["grass.png", 1],
+    	"G": ["high-grass.png", 2],
+    	"h": ["hills.png", 4],
+    	"m": ["peaks.png", 7],
+    	"r": ["river.png", 5]
+    }
+    var TravelerImg = "run.png";
+    var TravelerR   = 0;
+    var TravelerC   = 0;
+
+    function generate_random_map_text() {
+    	var rows = document.getElementById('map_tiles_rows').value;
+    	var cols = document.getElementById('map_tiles_cols').value;
+    	var text = document.getElementById('map_tiles_text');
+    	var tiles= Object.keys(TILES);
+
+	text.value = '';
+	for (var r = 0; r < rows; r++) {
+	    for (var c = 0; c < cols; c++) {
+	    	text.value += tiles[Math.floor(Math.random() * tiles.length)];
+	    }
+	    text.value += '\n';
+	}
+
+	INVERTED = {};
+	display_map_tiles_list();
+    }
+
+    function display_map_tiles_list() {
+    	var text  = document.getElementById('map_tiles_text');
+	var list  = document.getElementById('map_tiles_list');
+	var lines = text.value.trim().split('\n');
+
+	list.innerHTML = "";
+
+	for (var i in lines) {
+	    var line = lines[i];
+	    var item = document.createElement('li');
+	    for (var c in line) {
+	    	var tile = line[c];
+		var img  = document.createElement('img');
+		var src  = TILES[tile][0];
+
+		if (TravelerR == i && TravelerC == c) {
+		    src = TravelerImg;
+		}
+
+		img.setAttribute('src', src);
+		img.onclick = (function (x, y) {
+		    return function () { fetch_paths_to(x, y) };
+		})(i, c);
+		if (INVERTED[[i, c]]) {
+		    img.style.filter="invert(100%)";
+		    img.style.WebkitFilter="invert(100%)";
+		}
+		item.appendChild(img);
+	    }
+	    list.appendChild(item);
+	}
+
+    	text.onchange = display_map_tiles_list;
+    }
+
+    function display_map_tiles_legend() {
+    	var list = document.getElementById('map_tiles_legend');
+	for (var symbol in TILES) {
+	    var item = document.createElement('li');
+	    item.innerHTML = "<img src=\"" + TILES[symbol][0] + "\"> <strong>" + symbol + "</strong><i>(" + TILES[symbol][1] + ")</i>";
+	    list.appendChild(item);
+	}
+    }
+
+    function display_traveler_path(tiles, cost) {
+    	var text  = document.getElementById('map_tiles_text');
+	var path  = document.getElementById('map_tiles_path');
+	var lines = text.value.trim().split('\n');
+
+	INVERTED = {};
+
+	path.innerHTML = '';
+	for (var tile in tiles) {
+	    var tr = tiles[tile][0];
+	    var tc = tiles[tile][1];
+
+	    setTimeout((function(r, c, t) {
+		return function () {
+		    TravelerR = r;
+		    TravelerC = c;
+
+		    INVERTED[[r, c]] = true;
+
+		    display_map_tiles_list();
+
+		    var item = document.createElement('li');
+		    var img  = TILES[lines[r][c]][0];
+		    item.innerHTML  = '<img src="' + img + '">';
+		    item.innerHTML += '<strong>(' + r + ', ' + c + ')</strong>';
+
+		    if (t > 0) {
+			var pr = tiles[t - 1][0];
+			var pc = tiles[t - 1][1];
+
+			if (r < pr) {
+			    item.innerHTML += '<i class="fa fa-arrow-up"></i>'
+			} else if (r > pr) {
+			    item.innerHTML += '<i class="fa fa-arrow-down"></i>'
+			} else if (c > pc) {
+			    item.innerHTML += '<i class="fa fa-arrow-right"></i>'
+			} else if (c < pc) {
+			    item.innerHTML += '<i class="fa fa-arrow-left"></i>'
+			}
+		    }
+		    path.appendChild(item);
+		};
+	    })(tr, tc, tile), tile * 1000.0);
+	}
+
+	document.getElementById('map_tiles_cost').innerHTML = '<strong>Cost: ' + cost + '</strong>';
+    }
+
+    function fetch_paths_to(row, col) {
+    	console.log('Fetching paths to (' + row + ', ' + col + ')');
+    	var xhr = new XMLHttpRequest();
+    	xhr.open('post', 'http://xavier.h4x0r.space:9001', true);
+
+	var response = [];
+	var tiles    = Object.keys(TILES);
+
+	response.push(tiles.length);
+	for (var tile in TILES) {
+	    response.push(tile + ' ' + TILES[tile][1])
+	}
+
+    	var text  = document.getElementById('map_tiles_text');
+	var lines = text.value.trim().split('\n');
+
+	response.push(lines.length + ' ' + lines[0].length);
+	for (var i in lines) {
+	    var data = [];
+	    for (var c in lines[i]) {
+	    	data.push(lines[i][c]);
+	    }
+	    response.push(data.join(' '));
+	}
+
+	response.push(TravelerR + ' ' + TravelerC);
+	response.push(row + ' ' + col);
+    	xhr.send(response.join('\n'));
+
+	xhr.onreadystatechange = function() {
+	    if (xhr.readyState == 4 && xhr.status == 200) {
+	    	var data = JSON.parse(xhr.responseText);
+	    	console.log(xhr.responseText);
+		display_traveler_path(data['path'], data['cost']);
+	    }
+	};
+    }
+
+    function populate_map_tiles_side(id, limit, selected) {
+    	var element = document.getElementById(id);
+	for (var i = 0; i < limit; i++) {
+	    var opt = document.createElement('option');
+	    if ((i + 1) == selected) {
+	    	opt.setAttribute('selected', true);
+	    }
+	    opt.appendChild(document.createTextNode(i + 1));
+	    element.appendChild(opt);
+	}
+    }
+
+    function populate_map_tiles_rows() {
+    	populate_map_tiles_side('map_tiles_rows', MAX_ROWS, DEFAULT_DIM);
+    }
+
+    function populate_map_tiles_cols() {
+    	populate_map_tiles_side('map_tiles_cols', MAX_COLS, DEFAULT_DIM);
+    }
+
+    window.onload = function() {
+	var btn = document.getElementById('generate_random_btn');
+	btn.onclick = generate_random_map_text;
+
+	populate_map_tiles_rows();
+	populate_map_tiles_cols();
+    	generate_random_map_text();
+	display_map_tiles_legend();
+    }
+    </script>
+</body>
